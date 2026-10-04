@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Desarme a Bomba 2D</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Nunito:wght@400;700;900&display=swap');
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        background: #000;
+        display: flex; justify-content: center; align-items: center;
+        height: 100vh; overflow: hidden;
+        font-family: 'Nunito', sans-serif;
+    }
+    #wrapper {
+        position: relative;
+        width: 900px; height: 650px;
+        box-shadow: 0 0 80px rgba(255, 50, 50, 0.5), inset 0 0 60px rgba(0,0,0,0.8);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    canvas { display: block; border-radius: 12px; }
+
+    #math-overlay {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(6px);
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        z-index: 50;
+        animation: mathIn 0.3s ease-out;
+    }
+    #math-overlay.hidden { display: none; }
+    @keyframes mathIn {
+        0% { opacity: 0; transform: scale(1.2); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+    #math-panel {
+        background: linear-gradient(180deg, #1a1a2e 0%, #0a0a1a 100%);
+        padding: 30px 50px;
+        border-radius: 20px;
+        border: 3px solid #ff3b3b;
+        box-shadow: 0 0 60px rgba(255, 59, 59, 0.6), inset 0 0 30px rgba(0,0,0,0.8);
+        text-align: center;
+        max-width: 700px;
+    }
+    #math-label {
+        font-family: 'Orbitron', monospace;
+        font-size: 1rem; color: #ff5252;
+        letter-spacing: 3px; margin-bottom: 10px;
+        text-shadow: 0 0 10px #ff5252;
+    }
+    #math-question {
+        font-family: 'Orbitron', monospace;
+        font-size: 3.5rem; font-weight: 900;
+        color: #ffd54f;
+        text-shadow: 0 0 25px rgba(255, 213, 79, 0.7);
+        letter-spacing: 4px; margin-bottom: 25px;
+    }
+    #options-grid {
+        display: grid; grid-template-columns: 1fr 1fr;
+        gap: 12px; margin-bottom: 15px;
+    }
+    .opt {
+        padding: 16px 30px;
+        background: rgba(60, 30, 30, 0.6);
+        border: 2px solid rgba(255, 100, 100, 0.4);
+        border-radius: 12px;
+        font-family: 'Orbitron', monospace;
+        font-size: 1.8rem; font-weight: 900;
+        color: #fff; transition: all 0.15s;
+        cursor: pointer; min-width: 130px;
+    }
+    .opt.active {
+        background: linear-gradient(135deg, #ffd54f 0%, #ff9800 100%);
+        border-color: #fff; color: #1a0a0a;
+        transform: scale(1.08);
+        box-shadow: 0 0 30px rgba(255, 213, 79, 0.9);
+    }
+    .opt.correct {
+        background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+        border-color: #81c784;
+    }
+    .opt.wrong {
+        background: linear-gradient(135deg, #f44336 0%, #b71c1c 100%);
+        border-color: #ef9a9a; animation: shake 0.4s;
+    }
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-8px); }
+        75% { transform: translateX(8px); }
+    }
+    #math-hint {
+        font-family: 'Orbitron', monospace;
+        font-size: 0.9rem; color: #ff8a80;
+        letter-spacing: 2px;
+    }
+
+    /* Indicador de controle conectado */
+    #pad-status {
+        position: absolute; top: 10px; left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.7);
+        padding: 4px 15px; border-radius: 15px;
+        font-size: 11px; color: #0f0;
+        font-family: monospace;
+        z-index: 200;
+        transition: opacity 0.3s;
+    }
+    #pad-status.erro { color: #f00; }
+</style>
+</head>
+<body>
+<div id="wrapper">
+    <canvas id="game" width="900" height="650"></canvas>
+    <div id="pad-status">🎮 Aguardando controle... aperte um botão</div>
+    <div id="math-overlay" class="hidden">
+        <div id="math-panel">
+            <div id="math-label">🔌 DESARME O CIRCUITO</div>
+            <div id="math-question">?</div>
+            <div id="options-grid"></div>
+            <div id="math-hint">🎮 D-Pad: escolher • Qualquer botão: confirmar</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 900, H = 650;
+
+let gameState = 'MENU';
+let timeLeft = 90;
+let screenShake = 0;
+let particles = [];
+let floatingTexts = [];
+let flashAmount = 0;
+let gameTime = 0;
+let lastFrame = 0;
+
+const player = {
+    x: 200, y: 325, speed: 3.4, facing: 1,
+    walkAnim: 0, moving: false, radius: 18
+};
+
+const panels = [
+    { x: 130, y: 115, disarmed: false, level: 1 },
+    { x: 350, y: 115, disarmed: false, level: 1 },
+    { x: 550, y: 115, disarmed: false, level: 2 },
+    { x: 770, y: 115, disarmed: false, level: 2 },
+    { x: 130, y: 535, disarmed: false, level: 3 },
+    { x: 350, y: 535, disarmed: false, level: 3 },
+    { x: 550, y: 535, disarmed: false, level: 4 },
+    { x: 770, y: 535, disarmed: false, level: 5 }
+];
+
+const bomb = { x: 450, y: 325, radius: 55, pulse: 0 };
+let nearbyPanel = null;
+
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.key] = true; });
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ==================== CONTROLE ====================
+let gamepad = null;
+let gamepadAvisado = false;
+const padStatusEl = document.getElementById('pad-status');
+
+// ⭐ NOVO: Verifica o gamepad TUDO em todo frame, sem depender de evento
+function atualizarGamepad() {
+    const gps = navigator.getGamepads();
+    let gp = null;
+    for (const g of gps) { if (g) { gp = g; break; } }
+    
+    if (gp && !gamepad) {
+        // Controle apareceu agora
+        gamepad = gp;
+        gamepadAvisado = true;
+        padStatusEl.textContent = '✅ ' + gp.id.substring(0, 40);
+        padStatusEl.style.opacity = '1';
+        setTimeout(() => padStatusEl.style.opacity = '0.3', 3000);
+        console.log('🎮 Controle ativo:', gp.id);
+    } else if (gp) {
+        // Atualiza referência (o navegador troca o objeto a cada frame)
+        gamepad = gp;
+    } else if (!gp && gamepad) {
+        // Perdeu conexão
+        gamepad = null;
+        padStatusEl.textContent = '❌ Controle desconectado';
+        padStatusEl.classList.add('erro');
+        padStatusEl.style.opacity = '1';
+    }
+}
+
+// Estado dos botões (para detectar "apertou agora" em vez de "está apertado")
+const botoesAnterior = {};
+const cooldown = 250;
+const ultimoPress = {};
+
+function botaoApertado(idx, cooldownMs = cooldown) {
+    if (!gamepad) return false;
+    const btn = gamepad.buttons[idx];
+    if (!btn) return false;
+    const agora = performance.now();
+    const apertado = btn.pressed || btn.value > 0.5;
+    const estavaSoltando = !botoesAnterior[idx];
+    botoesAnterior[idx] = apertado;
+    if (apertado && estavaSoltando) {
+        if (!ultimoPress[idx] || agora - ultimoPress[idx] > cooldownMs) {
+            ultimoPress[idx] = agora;
+            return true;
+        }
+    }
+    return false;
+}
+
+// ⭐ Aceita qualquer botão de face: 0=🔺, 1=⭕, 2=✖️, 3=⬜
+function botaoFaceApertado() {
+    return botaoApertado(0) || botaoApertado(1) || botaoApertado(2) || botaoApertado(3);
+}
+
+// D-Pad: pode estar nos botões 12-15 OU nos eixos 0-1
+function dpadApertado(direcao) {
+    if (!gamepad) return false;
+    // Botões físicos (12=up, 13=down, 14=left, 15=right)
+    const map = { 'up': 12, 'down': 13, 'left': 14, 'right': 15 };
+    const idx = map[direcao];
+    if (gamepad.buttons[idx] && gamepad.buttons[idx].pressed) return true;
+    // Eixos (analógico)
+    const ax = gamepad.axes[0] || 0;
+    const ay = gamepad.axes[1] || 0;
+    const limiar = 0.5;
+    if (direcao === 'left' && ax < -limiar) return true;
+    if (direcao === 'right' && ax > limiar) return true;
+    if (direcao === 'up' && ay < -limiar) return true;
+    if (direcao === 'down' && ay > limiar) return true;
+    return false;
+}
+
+function eixoValor(idx) {
+    if (!gamepad) return 0;
+    const v = gamepad.axes[idx] || 0;
+    return Math.abs(v) > 0.25 ? v : 0;
+}
+
+// ==================== MATH ====================
+let mathProblem = null, mathOptions = [], mathActiveIdx = 0;
+let mathCorrectIdx = 0, mathPanelRef = null, mathAnswered = false;
+
+const mathOverlay = document.getElementById('math-overlay');
+const mathQuestionEl = document.getElementById('math-question');
+const optionsGrid = document.getElementById('options-grid');
+
+function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+function rnd(min, max) { return Math.random() * (max - min) + min; }
+function rndInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function dist(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
+
+function generateProblem(level) {
+    let a, b, answer, question;
+    switch (level) {
+        case 1: a = rndInt(10, 50); b = rndInt(10, 50); answer = a + b; question = `${a} + ${b}`; break;
+        case 2: a = rndInt(50, 99); b = rndInt(10, 49); answer = a - b; question = `${a} − ${b}`; break;
+        case 3: a = rndInt(3, 9); b = rndInt(3, 9); answer = a * b; question = `${a} × ${b}`; break;
+        case 4: b = rndInt(2, 9); answer = rndInt(2, 9); a = b * answer; question = `${a} ÷ ${b}`; break;
+        case 5: a = rndInt(2, 6); b = rndInt(2, 3); answer = Math.pow(a, b); question = `${a}${b === 2 ? '²' : '³'}`; break;
+        default: a = rndInt(2, 12); b = rndInt(2, 12); answer = a + b; question = `${a} + ${b}`;
+    }
+    return { question, answer };
+}
+
+function generateOptions(correct) {
+    const set = new Set([correct]);
+    while (set.size < 4) {
+        let delta = rndInt(1, Math.max(3, Math.floor(Math.abs(correct) * 0.4) + 2));
+        let sign = Math.random() < 0.5 ? -1 : 1;
+        let fake = correct + sign * delta;
+        if (fake !== correct) set.add(fake);
+    }
+    const arr = Array.from(set);
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function openMath(panel) {
+    gameState = 'MATH';
+    mathPanelRef = panel;
+    mathProblem = generateProblem(panel.level);
+    mathOptions = generateOptions(mathProblem.answer);
+    mathCorrectIdx = mathOptions.indexOf(mathProblem.answer);
+    mathActiveIdx = 0;
+    mathAnswered = false;
+    mathQuestionEl.textContent = mathProblem.question + ' = ?';
+    renderMathOptions();
+    mathOverlay.classList.remove('hidden');
+}
+
+function renderMathOptions() {
+    optionsGrid.innerHTML = '';
+    mathOptions.forEach((opt, i) => {
+        const div = document.createElement('div');
+        div.className = 'opt' + (i === mathActiveIdx ? ' active' : '');
+        div.textContent = opt;
+        optionsGrid.appendChild(div);
+    });
+}
+
+function updateMathSelection() {
+    const children = optionsGrid.children;
+    for (let i = 0; i < children.length; i++) {
+        children[i].classList.toggle('active', i === mathActiveIdx);
+    }
+}
+
+function confirmMath() {
+    if (mathAnswered) return;
+    mathAnswered = true;
+    const children = optionsGrid.children;
+    if (mathActiveIdx === mathCorrectIdx) {
+        children[mathActiveIdx].classList.add('correct');
+        mathPanelRef.disarmed = true;
+        floatingTexts.push({
+            x: mathPanelRef.x, y: mathPanelRef.y - 30,
+            text: '✓ DESARMADO', color: '#4caf50',
+            life: 1.5, maxLife: 1.5
+        });
+        spawnParticles(mathPanelRef.x, mathPanelRef.y, '#4caf50', 20);
+        setTimeout(() => {
+            mathOverlay.classList.add('hidden');
+            const totalDisarmed = panels.filter(p => p.disarmed).length;
+            if (totalDisarmed >= panels.length) triggerVictory();
+            if (gameState === 'MATH') gameState = 'PLAYING';
+        }, 700);
+    } else {
+        children[mathActiveIdx].classList.add('wrong');
+        children[mathCorrectIdx].classList.add('correct');
+        setTimeout(() => {
+            mathOverlay.classList.add('hidden');
+            triggerExplosion('RESPOSTA ERRADA!');
+        }, 700);
+    }
+}
+
+function spawnParticles(x, y, color, count = 15) {
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = rnd(2, 6);
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+            life: rnd(0.6, 1.2), maxLife: 1.2,
+            color, size: rnd(2, 5)
+        });
+    }
+}
+
+function triggerExplosion(reason) {
+    gameState = 'EXPLODED';
+    window._explodedAt = performance.now();
+    screenShake = 30;
+    flashAmount = 1.0;
+    spawnParticles(bomb.x, bomb.y, '#ff5722', 80);
+    spawnParticles(bomb.x, bomb.y, '#ffeb3b', 60);
+    spawnParticles(bomb.x, bomb.y, '#f44336', 70);
+    spawnParticles(player.x, player.y, '#ff8a65', 40);
+}
+
+function triggerVictory() {
+    gameState = 'VICTORY';
+    for (let i = 0; i < 100; i++) {
+        setTimeout(() => {
+            spawnParticles(rnd(100, 800), rnd(50, 200),
+                ['#4caf50','#ffeb3b','#2196f3','#ff9800'][rndInt(0,3)], 5);
+        }, i * 30);
+    }
+}
+
+function startGame() {
+    gameState = 'PLAYING';
+    timeLeft = 90;
+    player.x = 200; player.y = 325;
+    player.facing = 3; player.walkAnim = 0;
+    panels.forEach(p => p.disarmed = false);
+    particles = [];
+    floatingTexts = [];
+    screenShake = 0;
+    flashAmount = 0;
+    mathOverlay.classList.add('hidden');
+}
+
+// ==================== UPDATE ====================
+function update(dt) {
+    atualizarGamepad();
+
+    gameTime += dt;
+    bomb.pulse += dt * 3;
+
+    if (gameState === 'PLAYING') {
+        timeLeft -= dt;
+        if (timeLeft <= 0) { timeLeft = 0; triggerExplosion('TEMPO ESGOTADO!'); }
+    }
+
+    if (gameState === 'PLAYING') {
+        let dx = 0, dy = 0;
+        if (keys['ArrowLeft'] || keys['a'] || keys['A']) dx -= 1;
+        if (keys['ArrowRight'] || keys['d'] || keys['D']) dx += 1;
+        if (keys['ArrowUp'] || keys['w'] || keys['W']) dy -= 1;
+        if (keys['ArrowDown'] || keys['s'] || keys['S']) dy += 1;
+
+        // Analógico
+        const ax = eixoValor(0), ay = eixoValor(1);
+        if (ax !== 0) dx = ax;
+        if (ay !== 0) dy = ay;
+
+        const mag = Math.hypot(dx, dy);
+        if (mag > 0.1) {
+            dx /= mag; dy /= mag;
+            player.x += dx * player.speed;
+            player.y += dy * player.speed;
+            player.moving = true;
+            player.walkAnim += dt * 12;
+            if (Math.abs(dx) > Math.abs(dy)) player.facing = dx > 0 ? 3 : 2;
+            else player.facing = dy > 0 ? 1 : 0;
+        } else {
+            player.moving = false;
+            player.walkAnim = 0;
+        }
+
+        const pad = 60;
+        player.x = Math.max(pad + player.radius, Math.min(W - pad - player.radius, player.x));
+        player.y = Math.max(pad + player.radius, Math.min(H - pad - player.radius, player.y));
+
+        const dBomb = dist(player.x, player.y, bomb.x, bomb.y);
+        if (dBomb < bomb.radius + player.radius) {
+            const angle = Math.atan2(player.y - bomb.y, player.x - bomb.x);
+            player.x = bomb.x + Math.cos(angle) * (bomb.radius + player.radius);
+            player.y = bomb.y + Math.sin(angle) * (bomb.radius + player.radius);
+        }
+
+        nearbyPanel = null;
+        let bestDist = 70;
+        for (const p of panels) {
+            if (p.disarmed) continue;
+            const d = dist(player.x, player.y, p.x, p.y);
+            if (d < bestDist) { bestDist = d; nearbyPanel = p; }
+        }
+
+        // ⭐ Interação com qualquer botão de face
+        if (nearbyPanel) {
+            const interact = keys[' '] || keys['Enter'] || botaoFaceApertado();
+            if (interact) {
+                keys[' '] = false;
+                keys['Enter'] = false;
+                openMath(nearbyPanel);
+            }
+        }
+    }
+
+    if (gameState === 'MATH' && !mathAnswered) {
+        // Navegação com D-Pad
+        const ax = eixoValor(0), ay = eixoValor(1);
+        if ((dpadApertado('up') || ay < -0.5) && mathActiveIdx >= 2) { mathActiveIdx -= 2; updateMathSelection(); }
+        else if ((dpadApertado('down') || ay > 0.5) && mathActiveIdx < 2) { mathActiveIdx += 2; updateMathSelection(); }
+        else if ((dpadApertado('left') || ax < -0.5) && mathActiveIdx % 2 === 1) { mathActiveIdx -= 1; updateMathSelection(); }
+        else if ((dpadApertado('right') || ax > 0.5) && mathActiveIdx % 2 === 0) { mathActiveIdx += 1; updateMathSelection(); }
+        // Confirmar
+        if (botaoFaceApertado()) confirmMath();
+    }
+
+    // Menu / Restart também com qualquer botão
+    if (gameState === 'MENU' && botaoFaceApertado()) startGame();
+    if (gameState === 'EXPLODED' && performance.now() - window._explodedAt > 1500 && botaoFaceApertado()) startGame();
+    if (gameState === 'VICTORY' && botaoFaceApertado()) startGame();
+
+    particles = particles.filter(p => {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.vx *= 0.98;
+        p.life -= dt;
+        return p.life > 0;
+    });
+
+    floatingTexts = floatingTexts.filter(f => {
+        f.y -= 0.5; f.life -= dt;
+        return f.life > 0;
+    });
+
+    if (screenShake > 0) screenShake *= 0.9;
+    if (screenShake < 0.5) screenShake = 0;
+    if (flashAmount > 0) flashAmount -= dt * 1.5;
+    if (flashAmount < 0) flashAmount = 0;
+}
+
+// ==================== RENDER ====================
+function render() {
+    const sx = screenShake > 0 ? rnd(-screenShake, screenShake) : 0;
+    const sy = screenShake > 0 ? rnd(-screenShake, screenShake) : 0;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+
+    drawRoom();
+    drawBomb();
+    drawPanels();
+    drawPlayer();
+    drawParticles();
+    drawFloatingTexts();
+    drawVignette();
+
+    ctx.restore();
+
+    if (flashAmount > 0) {
+        ctx.fillStyle = `rgba(255, 100, 50, ${flashAmount})`;
+        ctx.fillRect(0, 0, W, H);
+    }
+
+    drawHUD();
+    if (gameState === 'MENU') drawMenu();
+    if (gameState === 'EXPLODED') drawExploded();
+    if (gameState === 'VICTORY') drawVictory();
+}
+
+function drawRoom() {
+    const grad = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, 700);
+    grad.addColorStop(0, '#2a2a35');
+    grad.addColorStop(1, '#0a0a12');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = 'rgba(80, 90, 120, 0.15)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    ctx.strokeStyle = 'rgba(255, 200, 0, 0.25)';
+    ctx.lineWidth = 6; ctx.setLineDash([20, 15]);
+    ctx.beginPath(); ctx.rect(55, 55, W - 110, H - 110); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#15151f';
+    ctx.fillRect(0, 0, W, 55);
+    ctx.fillRect(0, H - 55, W, 55);
+    ctx.fillRect(0, 0, 55, H);
+    ctx.fillRect(W - 55, 0, 55, H);
+
+    const emergencyAlpha = 0.15 + 0.1 * Math.sin(gameTime * 4);
+    ctx.fillStyle = `rgba(255, 30, 30, ${emergencyAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+
+    drawEmergencyLight(30, 30);
+    drawEmergencyLight(W - 30, 30);
+    drawEmergencyLight(30, H - 30);
+    drawEmergencyLight(W - 30, H - 30);
+}
+
+function drawEmergencyLight(x, y) {
+    const pulse = 0.6 + 0.4 * Math.sin(gameTime * 5 + x + y);
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, 120);
+    grad.addColorStop(0, `rgba(255, 50, 50, ${0.5 * pulse})`);
+    grad.addColorStop(1, 'rgba(255, 50, 50, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x, y, 120, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawBomb() {
+    const pulse = 1 + 0.08 * Math.sin(bomb.pulse);
+    const haloGrad = ctx.createRadialGradient(bomb.x, bomb.y, 0, bomb.x, bomb.y, 130);
+    haloGrad.addColorStop(0, `rgba(255, 50, 50, ${0.3 + 0.15 * Math.sin(bomb.pulse)})`);
+    haloGrad.addColorStop(1, 'rgba(255, 50, 50, 0)');
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath(); ctx.arc(bomb.x, bomb.y, 130, 0, Math.PI * 2); ctx.fill();
+
+    const bodyGrad = ctx.createRadialGradient(bomb.x - 20, bomb.y - 20, 5, bomb.x, bomb.y, bomb.radius);
+    bodyGrad.addColorStop(0, '#555'); bodyGrad.addColorStop(0.6, '#1a1a1a'); bodyGrad.addColorStop(1, '#000');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath(); ctx.arc(bomb.x, bomb.y, bomb.radius * pulse, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.ellipse(bomb.x - 15, bomb.y - 20, 18, 12, -0.4, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#0a0a0a';
+    roundRect(bomb.x - 32, bomb.y - 8, 64, 30, 6); ctx.fill();
+    ctx.strokeStyle = '#ff3b3b'; ctx.lineWidth = 2; ctx.stroke();
+
+    const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+    const s = Math.floor(timeLeft % 60).toString().padStart(2, '0');
+    ctx.fillStyle = timeLeft <= 20 ? '#ff3b3b' : '#ff5252';
+    ctx.font = '900 20px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 15;
+    ctx.fillText(`${m}:${s}`, bomb.x, bomb.y + 6);
+    ctx.shadowBlur = 0;
+
+    const totalDisarmed = panels.filter(p => p.disarmed).length;
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 11px Nunito, sans-serif';
+    ctx.fillText(`${totalDisarmed}/8`, bomb.x, bomb.y + 38);
+
+    if (Math.random() < 0.3) spawnParticles(bomb.x, bomb.y - bomb.radius, '#ffeb3b', 1);
+}
+
+function drawPanels() { for (const p of panels) drawPanel(p); }
+
+function drawPanel(p) {
+    const isNear = (nearbyPanel === p);
+    const glowPulse = 0.7 + 0.3 * Math.sin(gameTime * 4 + p.x * 0.1);
+
+    if (p.disarmed) {
+        ctx.fillStyle = '#1a3a1a';
+        ctx.shadowColor = '#4caf50'; ctx.shadowBlur = 25 * glowPulse;
+    } else {
+        const color = ['#ff5252','#ff9800','#ff5252','#ff9800','#2196f3','#2196f3','#9c27b0','#e91e63'][panels.indexOf(p)];
+        ctx.fillStyle = '#2a1515';
+        ctx.shadowColor = color; ctx.shadowBlur = 20 * glowPulse;
+    }
+
+    roundRect(p.x - 30, p.y - 25, 60, 50, 8); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.strokeStyle = p.disarmed ? '#4caf50' : '#ff5252';
+    ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.fillStyle = p.disarmed ? `rgba(76, 175, 80, ${glowPulse})` : `rgba(255, 50, 50, ${glowPulse})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y - 12, 6, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = p.disarmed ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255, 100, 100, 0.4)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(p.x - 20, p.y - 2 + i * 6);
+        ctx.lineTo(p.x + 20, p.y - 2 + i * 6);
+        ctx.stroke();
+    }
+
+    ctx.fillStyle = p.disarmed ? '#4caf50' : '#ff5252';
+    ctx.font = '900 14px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.disarmed ? '✓' : '!', p.x, p.y + 16);
+
+    if (isNear && !p.disarmed) {
+        const promptY = p.y - 50 + Math.sin(gameTime * 6) * 3;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        roundRect(p.x - 70, promptY - 15, 140, 30, 8); ctx.fill();
+        ctx.strokeStyle = '#ffd54f'; ctx.lineWidth = 2; ctx.stroke();
+
+        ctx.fillStyle = '#ffd54f';
+        ctx.font = '900 12px Orbitron, monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('APERTE UM BOTÃO', p.x, promptY + 1);
+    }
+}
+
+function drawPlayer() {
+    const p = player;
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 22, 22, 8, 0, 0, Math.PI * 2); ctx.fill();
+
+    const legPhase = p.moving ? Math.sin(p.walkAnim) * 7 : 0;
+    const bodyBob = p.moving ? Math.abs(Math.sin(p.walkAnim * 2)) * 2 : 0;
+    const bodyY = p.y - bodyBob;
+
+    ctx.fillStyle = '#0d1f33';
+    ctx.save(); ctx.translate(p.x - 9, p.y + 8); ctx.rotate(legPhase * 0.03);
+    roundRect(-5, 0, 10, 20, 3); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(p.x + 9, p.y + 8); ctx.rotate(-legPhase * 0.03);
+    roundRect(-5, 0, 10, 20, 3); ctx.fill(); ctx.restore();
+
+    ctx.fillStyle = '#000';
+    roundRect(p.x - 14, p.y + 25, 11, 5, 2); ctx.fill();
+    roundRect(p.x + 3, p.y + 25, 11, 5, 2); ctx.fill();
+
+    const bodyGrad = ctx.createLinearGradient(p.x, bodyY - 18, p.x, bodyY + 12);
+    bodyGrad.addColorStop(0, '#3d6b95'); bodyGrad.addColorStop(1, '#1a3a5c');
+    ctx.fillStyle = bodyGrad;
+    roundRect(p.x - 17, bodyY - 18, 34, 32, 9); ctx.fill();
+    ctx.strokeStyle = '#0a1a2a'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    ctx.fillStyle = '#0a1a2a';
+    ctx.fillRect(p.x - 12, bodyY - 12, 24, 3);
+    ctx.fillRect(p.x - 12, bodyY - 5, 24, 3);
+    ctx.fillRect(p.x - 4, bodyY - 18, 8, 32);
+
+    ctx.fillStyle = '#2c5f8d';
+    const armPhase = p.moving ? Math.cos(p.walkAnim) * 4 : 0;
+    roundRect(p.x - 22, bodyY - 12 + armPhase, 7, 22, 3); ctx.fill();
+    roundRect(p.x + 15, bodyY - 12 - armPhase, 7, 22, 3); ctx.fill();
+
+    ctx.fillStyle = '#e8b894';
+    ctx.beginPath(); ctx.arc(p.x, bodyY - 26, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8a5a3a'; ctx.lineWidth = 1; ctx.stroke();
+
+    ctx.fillStyle = '#1a3a5c';
+    ctx.beginPath(); ctx.arc(p.x, bodyY - 30, 15, Math.PI, 0); ctx.fill();
+    ctx.fillRect(p.x - 15, bodyY - 30, 30, 6);
+
+    if (p.facing === 1) {
+        ctx.fillStyle = '#0a1a2a';
+        ctx.beginPath(); ctx.arc(p.x, bodyY - 30, 11, 0, Math.PI); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(p.x - 4, bodyY - 22, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x + 4, bodyY - 22, 2, 0, Math.PI * 2); ctx.fill();
+    } else if (p.facing === 2) {
+        ctx.fillStyle = '#0a1a2a';
+        ctx.beginPath(); ctx.arc(p.x - 6, bodyY - 30, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(p.x - 9, bodyY - 24, 2, 0, Math.PI * 2); ctx.fill();
+    } else if (p.facing === 3) {
+        ctx.fillStyle = '#0a1a2a';
+        ctx.beginPath(); ctx.arc(p.x + 6, bodyY - 30, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(p.x + 9, bodyY - 24, 2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    if (nearbyPanel) {
+        ctx.strokeStyle = `rgba(255, 213, 79, ${0.5 + 0.3 * Math.sin(gameTime * 5)})`;
+        ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nearbyPanel.x, nearbyPanel.y); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+}
+
+function drawParticles() {
+    for (const pt of particles) {
+        const alpha = pt.life / pt.maxLife;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = pt.color;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawFloatingTexts() {
+    for (const f of floatingTexts) {
+        const alpha = f.life / f.maxLife;
+        ctx.globalAlpha = alpha;
+        ctx.font = '900 18px Orbitron, monospace';
+        ctx.fillStyle = f.color;
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+        ctx.textAlign = 'center';
+        ctx.strokeText(f.text, f.x, f.y);
+        ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+}
+
+function drawVignette() {
+    const grad = ctx.createRadialGradient(W/2, H/2, 250, W/2, H/2, 700);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.75)');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+    if (timeLeft <= 20 && gameState === 'PLAYING') {
+        const intensity = (20 - timeLeft) / 20;
+        const pulse = 0.5 + 0.5 * Math.sin(gameTime * 8);
+        const rg = ctx.createRadialGradient(W/2, H/2, 200, W/2, H/2, 700);
+        rg.addColorStop(0, 'rgba(255,0,0,0)');
+        rg.addColorStop(1, `rgba(255, 0, 0, ${0.5 * intensity * pulse})`);
+        ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+    }
+}
+
+function drawHUD() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, W, 45);
+    ctx.strokeStyle = 'rgba(255, 80, 80, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 45); ctx.lineTo(W, 45); ctx.stroke();
+
+    const totalDisarmed = panels.filter(p => p.disarmed).length;
+    ctx.font = '900 20px Orbitron, monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffd54f'; ctx.shadowColor = '#ffd54f'; ctx.shadowBlur = 10;
+    ctx.fillText(`🔌 FIOS: ${totalDisarmed}/8`, 30, 22);
+    ctx.shadowBlur = 0;
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#66d9ff';
+    ctx.font = '700 13px Orbitron, monospace';
+    if (gameState === 'PLAYING' && nearbyPanel) {
+        ctx.fillText('APERTE QUALQUER BOTÃO PARA DESARMAR', W/2, 22);
+    } else if (gameState === 'PLAYING') {
+        ctx.fillText('CORRA ATÉ UM PAINEL VERMELHO', W/2, 22);
+    }
+
+    const m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+    const s = Math.floor(timeLeft % 60).toString().padStart(2, '0');
+    ctx.textAlign = 'right';
+    const timerColor = timeLeft <= 20
+        ? `rgba(255, ${50 + 100 * Math.abs(Math.sin(gameTime * 6))}, 50, 1)`
+        : '#ff5252';
+    ctx.fillStyle = timerColor;
+    ctx.shadowColor = timerColor; ctx.shadowBlur = 15;
+    ctx.font = '900 22px Orbitron, monospace';
+    ctx.fillText(`⏱ ${m}:${s}`, W - 30, 22);
+    ctx.shadowBlur = 0;
+}
+
+function drawMenu() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 62px Orbitron, monospace';
+    ctx.fillStyle = '#ff3b3b'; ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 40;
+    ctx.fillText('DESARME', W/2, 120);
+    ctx.fillText('A BOMBA', W/2, 190);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '80px sans-serif';
+    ctx.fillText('💣', W/2, 300);
+
+    ctx.font = '700 18px Nunito, sans-serif';
+    ctx.fillStyle = '#ffd54f';
+    ctx.fillText('90 segundos para desarmar 8 painéis', W/2, 380);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 16px Nunito, sans-serif';
+    ctx.fillText('🎮 D-Pad / Analógico — Mover agente', W/2, 420);
+    ctx.fillText('🔺 ⭕ ✖️ ⬜ — Interagir com painel', W/2, 445);
+    ctx.fillText('⌨️ Setas + Espaço (teclado)', W/2, 470);
+
+    ctx.fillStyle = '#ff5252';
+    ctx.font = '900 18px Orbitron, monospace';
+    ctx.fillText('UM ERRO = 💥 EXPLOSÃO!', W/2, 520);
+
+    const pulse = 0.7 + 0.3 * Math.sin(gameTime * 4);
+    ctx.fillStyle = `rgba(255, 59, 59, ${pulse})`;
+    ctx.font = '900 24px Orbitron, monospace';
+    ctx.fillText('▶ APERTE QUALQUER BOTÃO', W/2, 590);
+}
+
+function drawExploded() {
+    ctx.fillStyle = `rgba(0, 0, 0, 0.6)`;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 100px Orbitron, monospace';
+    ctx.fillStyle = '#ff5722'; ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 60;
+    ctx.fillText('BOOM!', W/2, H/2 - 60);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '900 30px Orbitron, monospace';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('💥 A BOMBA EXPLODIU 💥', W/2, H/2 + 20);
+
+    ctx.font = '700 22px Nunito, sans-serif';
+    ctx.fillStyle = '#ffd54f';
+    const totalDisarmed = panels.filter(p => p.disarmed).length;
+    ctx.fillText(`Painéis desarmados: ${totalDisarmed}/8`, W/2, H/2 + 70);
+
+    if (performance.now() - window._explodedAt > 1500) {
+        const pulse = 0.7 + 0.3 * Math.sin(gameTime * 5);
+        ctx.fillStyle = `rgba(255, 213, 79, ${pulse})`;
+        ctx.font = '900 22px Orbitron, monospace';
+        ctx.fillText('▶ APERTE QUALQUER BOTÃO PARA TENTAR DE NOVO', W/2, H/2 + 150);
+    }
+}
+
+function drawVictory() {
+    ctx.fillStyle = 'rgba(20, 80, 20, 0.9)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '100px sans-serif';
+    ctx.fillText('🛡️', W/2, H/2 - 180);
+
+    ctx.font = '900 55px Orbitron, monospace';
+    ctx.fillStyle = '#4caf50'; ctx.shadowColor = '#a5d6a7'; ctx.shadowBlur = 40;
+    ctx.fillText('BOMBA', W/2, H/2 - 60);
+    ctx.fillText('DESARMADA!', W/2, H/2);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '700 22px Nunito, sans-serif';
+    ctx.fillStyle = '#fff';
+    const usedTime = (90 - timeLeft).toFixed(1);
+    ctx.fillText(`⏱ Tempo total: ${usedTime}s`, W/2, H/2 + 70);
+    ctx.fillText(`🔌 Todos os 8 painéis desarmados`, W/2, H/2 + 100);
+
+    const pulse = 0.7 + 0.3 * Math.sin(gameTime * 5);
+    ctx.fillStyle = `rgba(255, 213, 79, ${pulse})`;
+    ctx.font = '900 22px Orbitron, monospace';
+    ctx.fillText('▶ APERTE QUALQUER BOTÃO PARA JOGAR DE NOVO', W/2, H/2 + 170);
+}
+
+// ==================== LOOP ====================
+function gameLoop(now) {
+    const dt = Math.min(0.05, (now - lastFrame) / 1000 || 0);
+    lastFrame = now;
+    update(dt);
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+// ==================== TECLADO ====================
+window.addEventListener('keydown', e => {
+    if (gameState === 'MENU' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); startGame(); return; }
+    if ((gameState === 'EXPLODED' || gameState === 'VICTORY') && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); startGame(); return; }
+    if (gameState === 'MATH' && !mathAnswered) {
+        if (e.key === 'ArrowUp' && mathActiveIdx >= 2) { mathActiveIdx -= 2; updateMathSelection(); }
+        else if (e.key === 'ArrowDown' && mathActiveIdx < 2) { mathActiveIdx += 2; updateMathSelection(); }
+        else if (e.key === 'ArrowLeft' && mathActiveIdx % 2 === 1) { mathActiveIdx -= 1; updateMathSelection(); }
+        else if (e.key === 'ArrowRight' && mathActiveIdx % 2 === 0) { mathActiveIdx += 1; updateMathSelection(); }
+        else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); confirmMath(); }
+    }
+});
+
+// Clique nas opções (fallback)
+optionsGrid.addEventListener('click', e => {
+    if (gameState !== 'MATH' || mathAnswered) return;
+    const opt = e.target.closest('.opt');
+    if (!opt) return;
+    mathActiveIdx = Array.from(optionsGrid.children).indexOf(opt);
+    updateMathSelection();
+    confirmMath();
+});
+
+window._explodedAt = 0;
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

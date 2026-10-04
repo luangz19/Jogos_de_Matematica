@@ -1,0 +1,520 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rally Matemático — Duelo 3D</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0c1c2a;color:#f4f9fc;font-family:system-ui,sans-serif;overflow:hidden}canvas{width:100vw;height:100vh;display:block}.top{position:absolute;top:0;left:0;right:0;height:64px;background:#0c1c2af5;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid #ffffff22}.brand{font-size:14px;font-weight:850;letter-spacing:2px}.brand small{display:block;color:#89a9bc;font-size:10px;letter-spacing:1px;margin-top:4px}.clock{font-size:30px;font-weight:850;font-variant-numeric:tabular-nums}.clock small{font-size:11px;color:#aac5d6;margin-left:10px}button{border:0;border-radius:9px;padding:11px 18px;font-weight:750;font-size:14px;background:#b1f179;color:#172b25;cursor:pointer}.secondary{background:#244357;color:#edf6fb}.views{position:absolute;inset:80px 0 0;display:flex;pointer-events:none}.view{width:50%;padding:0 20px;position:relative}.identity{display:flex;justify-content:space-between;align-items:start;gap:12px}.name{font-size:20px;font-weight:800}.blue{color:#6cceff}.orange{color:#ffbd78}.stats{text-align:right;font-size:12px;color:#c1d7e4}.stats b{font-size:24px;color:#fff}.status{margin-top:8px;font-size:12px;color:#bed2db}
+
+/* ===== PAINEL DE QUESTÃO — visual reforçado para leitura ===== */
+.question{
+  pointer-events:auto;
+  margin-top:14px;
+  padding:18px;
+  background:linear-gradient(150deg,#241a4d 0%,#1a1236 55%,#2a1a52 100%);
+  border:2px solid #ffb347;
+  border-radius:16px;
+  box-shadow:0 0 0 3px #ffb34722, 0 14px 45px #000a, inset 0 1px 0 #ffffff22;
+  position:relative;
+  overflow:hidden;
+}
+.question::before{
+  content:'';
+  position:absolute;inset:0;
+  background:radial-gradient(circle at 100% 0%, #ffb34733 0%, transparent 55%);
+  pointer-events:none;
+}
+.question small{
+  position:relative;
+  display:inline-block;
+  font-size:10px;
+  color:#0c0a1a;
+  background:#ffb347;
+  letter-spacing:1px;
+  font-weight:850;
+  padding:3px 8px;
+  border-radius:5px;
+}
+.question h2{
+  position:relative;
+  font-size:24px;
+  margin:12px 0 16px;
+  min-height:30px;
+  color:#fff;
+  font-weight:800;
+  text-shadow:0 2px 6px #0007;
+}
+
+/* ===== BOTÕES DE RESPOSTA COM SÍMBOLOS DO CONTROLE PS2 ===== */
+.answers{display:flex;gap:10px;position:relative}
+.answers .ans{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:14px 6px 10px;
+  font-size:22px;
+  font-weight:800;
+  background:linear-gradient(180deg,#3d3170,#2a2154);
+  color:#fff;
+  border:1.5px solid #ffffff33;
+  border-radius:14px;
+  box-shadow:0 4px 12px #0005, inset 0 1px 0 #ffffff22;
+  min-height:112px;
+  line-height:1;
+  cursor:pointer;
+  transition:filter .15s, transform .15s, background .15s;
+}
+.answers .ans:hover{filter:brightness(1.22);background:linear-gradient(180deg,#4d3f8c,#372a6a)}
+.answers .ans:active{transform:translateY(1px)}
+.answers .ans .ps2{
+  width:44px;height:44px;
+  border-radius:50%;
+  display:grid;place-items:center;
+  font-size:24px;
+  font-weight:900;
+  color:#fff;
+  border:2px solid #ffffff66;
+  box-shadow:inset 0 -4px 0 #00000066, inset 0 3px 0 #ffffff40, 0 3px 9px #0009;
+  text-shadow:0 1px 2px #0008;
+  flex-shrink:0;
+}
+.answers .ans .ps2-x{background:radial-gradient(circle at 35% 28%,#9bbcff,#4c7ee8 55%,#2c55ba)}
+.answers .ans .ps2-o{background:radial-gradient(circle at 35% 28%,#ff9a9a,#e84c4c 55%,#a82b2b)}
+.answers .ans .ps2-sq{background:radial-gradient(circle at 35% 28%,#ff9ee8,#e84ce8 55%,#a82ba8)}
+.answers .ans .ps2-tri{background:radial-gradient(circle at 35% 28%,#9ee89e,#4dc44d 55%,#2a842a)}
+.answers .ans .val{
+  font-size:26px;
+  font-weight:900;
+  color:#fff;
+  text-shadow:0 2px 5px #0009;
+  letter-spacing:-0.5px;
+}
+.answers .ans .key{
+  font-size:9px;
+  color:#d3c4ff;
+  letter-spacing:0.6px;
+  font-weight:800;
+  text-transform:uppercase;
+  opacity:.9;
+  background:#ffffff14;
+  padding:2px 7px;
+  border-radius:5px;
+}
+/* ============================================================= */
+
+.bar{height:4px;background:#ffffff1a;margin-top:14px;border-radius:3px;overflow:hidden;position:relative}
+.bar i{display:block;background:linear-gradient(90deg,#ffb347,#ffe08a);height:100%;transition:width .1s linear;box-shadow:0 0 8px #ffb34788}
+.feedback{margin-top:14px;font-size:15px;font-weight:700;text-shadow:0 2px 6px #000;background:#0b253ad9;padding:10px;border-radius:10px;line-height:1.4}.feedback:empty{display:none}.instructions{position:absolute;bottom:20px;left:20px;right:20px;background:#10283ade;padding:12px;border:1px solid #ffffff14;border-radius:12px;font-size:12px;line-height:1.6}.divider{position:absolute;left:50%;top:64px;bottom:0;width:2px;background:#547488}.overlay{position:absolute;inset:0;display:grid;place-items:center;background:#06121bc4;backdrop-filter:blur(6px);padding:18px}.panel{max-width:710px;width:100%;max-height:94vh;overflow:auto;border:1px solid #36516a;background:#102638;border-radius:24px;padding:30px}.eyebrow{font-size:11px;letter-spacing:2px;color:#a8f069;font-weight:800}h1{font-size:42px;line-height:1.08;margin:15px 0}p{color:#c5d7e3;line-height:1.6}.fields{display:flex;gap:14px}.fields>div{flex:1;min-width:0}label{display:block;font-size:12px;color:#b4cbd9;margin:10px 0 6px}input,select{width:100%;border:1px solid #416079;border-radius:8px;background:#203c51;color:#fff;padding:11px;font-size:14px}.row{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}.hidden{display:none!important}#countdown{position:absolute;top:48%;left:50%;transform:translate(-50%,-50%);font-size:100px;color:#ceffad;font-weight:900;text-shadow:0 6px 20px #000;pointer-events:none}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:14px}td,th{text-align:left;padding:10px 5px;border-bottom:1px solid #ffffff1a}#review details{margin-top:18px}#review p{font-size:13px;padding:8px;background:#1c3a50;border-radius:8px}.note{font-size:12px;color:#95b4c8}
+@media(max-width:800px){.view{padding:0 9px}.question{padding:12px}.question h2{font-size:18px;margin:10px 0 12px}.answers{gap:7px}.answers .ans{min-height:92px;padding:10px 4px 8px;gap:6px}.answers .ans .ps2{width:36px;height:36px;font-size:19px}.answers .ans .val{font-size:20px}.answers .ans .key{font-size:8px;padding:1px 5px}.name{font-size:16px}.top{padding:0 12px}.brand{font-size:11px}.clock small{display:none}.instructions{left:9px;right:9px;font-size:10px}.stats b{font-size:18px}}
+@media(max-height:650px){.instructions{bottom:8px;padding:6px}.question h2{font-size:17px}.question{padding:10px}.answers .ans{min-height:88px;padding:8px 4px 6px;gap:5px}.answers .ans .ps2{width:34px;height:34px;font-size:18px}.answers .ans .val{font-size:19px}.views{top:72px}}
+
+.top{background:linear-gradient(100deg,#091621,#142a38);box-shadow:0 4px 25px #0004}.identity{background:linear-gradient(110deg,#091d30df,#122b3b9c);padding:12px 16px;border:1px solid #ffffff26;border-radius:14px;box-shadow:0 6px 20px #0002}.panel{background:linear-gradient(135deg,#142d40f5,#081622fa);box-shadow:0 30px 100px #0008}.eyebrow{color:#7cddff}.panel h1{letter-spacing:-1.8px}.instructions{backdrop-filter:blur(8px)}button{transition:filter .15s,transform .15s}button:hover{filter:brightness(1.15)}button:active{transform:translateY(1px)}.brand small{color:#76d7ec}select:focus,input:focus,button:focus-visible{outline:2px solid #7cddff;outline-offset:3px}
+
+/* ===== CALIBRAÇÃO DOS BOTÕES DO CONTROLE PS2 ===== */
+.calib{display:flex;gap:8px;margin-top:6px}
+.calibBtn{flex:1;min-width:0;background:#203c51;color:#dbeaf3;border:1px solid #416079;border-radius:8px;padding:9px 5px;font-size:11px;font-weight:800;letter-spacing:.3px;cursor:pointer;transition:filter .15s,background .15s}
+.calibBtn:hover{filter:brightness(1.2)}
+.calibBtn.capturing{background:#ffb347;color:#1a1236;border-color:#ffffff66;animation:calibPulse .9s infinite}
+@keyframes calibPulse{0%,100%{opacity:1}50%{opacity:.5}}
+</style>
+<canvas id="scene" aria-label="Corrida com dois carros na mesma pista em tela dividida"></canvas>
+<div class="top"><div class="brand">RALLY MATEMÁTICO<small>GRAND PRIX • EDIÇÃO VISUAL</small></div><div class="clock"><span id="clock">03:00</span><small>TEMPO DE CORRIDA</small></div><button id="pause" class="secondary">Pausar</button></div>
+<div class="divider"></div><div class="views">
+<section class="view"><div class="identity"><div><div class="name blue" id="name0">Aluno 1</div><div class="status" id="status0">Procure o marcador azul</div></div><div class="stats"><b id="speed0">60</b> km/h<br><span id="distance0">0</span> m • <span id="hits0">0</span> acertos</div></div><div class="question hidden" id="q0"><small>MARCADOR ATIVADO • O CARRO CONTINUA ANDANDO</small><h2 id="prompt0"></h2><div class="answers"><button id="answer00" class="ans"><span class="ps2 ps2-x">✕</span><span class="val"></span><span class="key">1</span></button><button id="answer01" class="ans"><span class="ps2 ps2-o">○</span><span class="val"></span><span class="key">2</span></button><button id="answer02" class="ans"><span class="ps2 ps2-sq">□</span><span class="val"></span><span class="key">3</span></button></div><div class="bar"><i id="bar0"></i></div></div><div class="feedback" id="feedback0" role="status"></div><div class="instructions"><b class="blue">ALUNO 1</b> &nbsp; W: acelerar • S: frear • A/D: dirigir • 1/2/3: responder<br>🎮 PS2: analógico esquerdo dirige • R2 (ou R1 / ↑) acelera • L2 (ou L1 / ↓) freia • ✕/○/□ responde • Start pausa<br>Grama e batidas reduzem a velocidade. Espaço: pausar.</div></section><section class="view"><div class="identity"><div><div class="name orange" id="name1">Aluno 2</div><div class="status" id="status1">Procure o marcador azul</div></div><div class="stats"><b id="speed1">60</b> km/h<br><span id="distance1">0</span> m • <span id="hits1">0</span> acertos</div></div><div class="question hidden" id="q1"><small>MARCADOR ATIVADO • O CARRO CONTINUA ANDANDO</small><h2 id="prompt1"></h2><div class="answers"><button id="answer10" class="ans"><span class="ps2 ps2-x">✕</span><span class="val"></span><span class="key">J</span></button><button id="answer11" class="ans"><span class="ps2 ps2-o">○</span><span class="val"></span><span class="key">K</span></button><button id="answer12" class="ans"><span class="ps2 ps2-sq">□</span><span class="val"></span><span class="key">L</span></button></div><div class="bar"><i id="bar1"></i></div></div><div class="feedback" id="feedback1" role="status"></div><div class="instructions"><b class="orange">ALUNO 2</b> &nbsp; ↑: acelerar • ↓: frear • ←/→: dirigir • J/K/L: responder<br>🎮 PS2: analógico esquerdo dirige • R2 (ou R1 / ↑) acelera • L2 (ou L1 / ↓) freia • ✕/○/□ responde • Start pausa<br>Grama e batidas reduzem a velocidade. Espaço: pausar.</div></section></div><div id="countdown" class="hidden"></div>
+<div id="menu" class="overlay"><div class="panel"><span class="eyebrow">180 SEGUNDOS • UMA DISPUTA DE CONHECIMENTO</span><h1>Dois pilotos.<br>Quem vai mais longe?</h1><p>Passe pelo <b style="color:#70d0ff">marcador azul</b> para abrir uma questão. Continue dirigindo e acelerando enquanto responde. Cada acerto aumenta seu limite de velocidade em <b>10 km/h</b>. Você precisa acelerar para alcançá-lo. Vence a maior distância ao final de <b>3 minutos</b>.</p><div class="fields"><div><label for="player0">Aluno 1 • lado esquerdo</label><input id="player0" value="Aluno 1" maxlength="24"></div><div><label for="player1">Aluno 2 • lado direito</label><input id="player1" value="Aluno 2" maxlength="24"></div></div><div class="fields"><div><label for="topic">Conteúdo</label><select id="topic"><option value="mixed">Circuito misto</option><option value="integer">Números inteiros</option><option value="percent">Porcentagem</option><option value="equation">Equações do 1º grau</option><option value="geometry">Área e perímetro</option><option value="power">Potências e raízes</option></select></div><div><label for="answerTime">Tempo para responder</label><select id="answerTime"><option value="15">15 segundos</option><option value="22">22 segundos</option><option value="10">10 segundos</option></select></div></div><p class="note"><b>Aluno 1:</b> W/S para acelerar/frear; A/D para dirigir; 1/2/3 para responder.<br><b>Aluno 2:</b> ↑/↓ para acelerar/frear; ←/→ para dirigir; J/K/L para responder.<br><b>🎮 Controle PS2 (DualShock 2 via adaptador USB):</b> analógico esquerdo dirige com precisão; <b>R2</b> acelera e <b>L2</b> freia (ou use <b>R1/L1</b> ou o direcional ↑/↓); <b>✕ / ○ / □</b> responde às questões; <b>Start</b> pausa e <b>Select</b> também. O analógico dá direção proporcional, bem mais suave que o teclado.</p><div class="fields"><div><label for="quality">Qualidade gráfica</label><select id="quality"><option value="medium">Média • recomendada para seu notebook</option><option value="high">Alta • mais detalhes</option><option value="low">Baixa • computador mais simples</option></select></div></div><div class="fields"><div><label for="pad0">Controle PS2 • Aluno 1</label><select id="pad0"><option value="auto">Automático (1º controle)</option><option value="0">Controle 1</option><option value="1">Controle 2</option><option value="2">Controle 3</option><option value="3">Controle 4</option><option value="off">Somente teclado</option></select></div><div><label for="pad1">Controle PS2 • Aluno 2</label><select id="pad1"><option value="auto">Automático (2º controle)</option><option value="0">Controle 1</option><option value="1">Controle 2</option><option value="2">Controle 3</option><option value="3">Controle 4</option><option value="off">Somente teclado</option></select></div></div>
+<div class="fields">
+  <div><label>Botões de resposta • Aluno 1</label>
+    <div class="calib" id="calib0">
+      <button type="button" class="calibBtn" data-slot="0"></button>
+      <button type="button" class="calibBtn" data-slot="1"></button>
+      <button type="button" class="calibBtn" data-slot="2"></button>
+    </div>
+  </div>
+  <div><label>Botões de resposta • Aluno 2</label>
+    <div class="calib" id="calib1">
+      <button type="button" class="calibBtn" data-slot="0"></button>
+      <button type="button" class="calibBtn" data-slot="1"></button>
+      <button type="button" class="calibBtn" data-slot="2"></button>
+    </div>
+  </div>
+</div>
+<p class="note" id="calibinfo">Calibre antes de jogar: clique em ✕, ○ e □ e pressione UMA VEZ o botão físico correspondente no controle. Cada botão fica exclusivo para uma resposta; isso evita respostas trocadas ou duplicadas em adaptadores PS2→USB.</p>
+<div class="row" style="margin-top:10px"><button id="resetcalib" class="secondary" type="button">Restaurar botões padrão (✕ ○ □)</button></div>
+<p class="note" id="padinfo">Nenhum controle PS2 detectado. Conecte o adaptador USB e aperte qualquer botão para ativá-lo.</p><div class="row"><button id="start">Começar disputa →</button></div></div></div>
+<div id="paused" class="overlay hidden"><div class="panel"><span class="eyebrow">PIT STOP</span><h1>Disputa pausada</h1><p>Os dois carros e todos os cronômetros estão pausados.</p><div class="row"><button id="resume">Continuar</button><button id="back" class="secondary">Encerrar e voltar ao menu</button></div></div></div>
+<div id="result" class="overlay hidden"><div class="panel"><span class="eyebrow">BANDEIRADA • 3 MINUTOS CONCLUÍDOS</span><h1 id="winner"></h1><p id="outcome"></p><table><thead><tr><th>Piloto</th><th>Distância</th><th>Acertos</th><th>Velocidade</th></tr></thead><tbody id="ranking"></tbody></table><div class="row"><button id="again">Nova disputa</button><button id="export" class="secondary">Baixar resultados</button></div><div id="review"></div></div></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),canvas=$('scene'),ctx=canvas.getContext('2d');let width,height,dpr;
+function resize(){width=innerWidth;height=innerHeight;dpr=Math.min(devicePixelRatio||1,($('quality')?.value==='high'?2:$('quality')?.value==='low'?0.8:1));canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}addEventListener('resize',resize);resize();
+const rand=(a,b)=>Math.floor(Math.random()*(b-a+1))+a,fmt=n=>String(n).replace('.',',');
+function question(type){if(type==='mixed')type=['integer','percent','equation','geometry','power'][rand(0,4)];let a,b,answer,prompt,explanation;
+if(type==='integer'){a=rand(-20,20);b=rand(-15,15);answer=a+b;prompt=`${a} + (${b}) = ?`;explanation=`Somando os inteiros: ${a} + (${b}) = ${answer}.`}
+if(type==='percent'){a=[10,20,25,50,75][rand(0,4)];b=rand(2,20)*20;answer=a*b/100;prompt=`Quanto é ${a}% de ${b}?`;explanation=`${a}/100 × ${b} = ${answer}.`}
+if(type==='equation'){a=rand(2,9);answer=rand(-5,12);b=rand(1,20);const c=a*answer+b;prompt=`${a}x + ${b} = ${c}. Qual é x?`;explanation=`${a}x = ${c} − ${b} = ${c-b}; x = ${answer}.`}
+if(type==='geometry'){a=rand(3,15);b=rand(2,12);if(rand(0,1)){answer=a*b;prompt=`Área de um retângulo: ${a} m × ${b} m?`;explanation=`Área = base × altura = ${a} × ${b} = ${answer} m².`}else{answer=2*(a+b);prompt=`Perímetro: retângulo de ${a} m por ${b} m?`;explanation=`Perímetro = 2 × (${a} + ${b}) = ${answer} m.`}}
+if(type==='power'){a=rand(2,12);if(rand(0,1)){answer=a*a;prompt=`Quanto é ${a}²?`;explanation=`${a}² = ${a} × ${a} = ${answer}.`}else{answer=a;prompt=`Qual é a raiz quadrada de ${a*a}?`;explanation=`√${a*a} = ${a}, pois ${a} × ${a} = ${a*a}.`}}
+const choices=new Set([answer]);while(choices.size<3){let c=answer+rand(-10,10);if(type!=='integer'&&type!=='equation'&&c<0)continue;choices.add(c)}const options=[...choices];for(let i=2;i>0;i--){const j=rand(0,i);[options[i],options[j]]=[options[j],options[i]]}return{type,prompt,answer,explanation,options}}
+
+const DURATION=180,BASE_SPEED=90,MAX_SPEED=160;let state='menu',beforePause='race',remaining=DURATION,countdown=3,last=null,players=[],bank=[],answerTime=15;
+function newPlayer(i){return {name:$('player'+i).value.trim()||`Aluno ${i+1}`,lane:i?2:0,x:i?2.5:-2.5,distance:0,speed:0,maxSpeed:BASE_SPEED,steer:0,collisionTime:0,hits:0,attempts:0,missed:0,marker:160,markerIndex:0,question:null,qTime:0,questionReadyAt:0,feedbackTime:0,records:[],color:i?'#ffae61':'#66caff'}}
+function markerLane(p){return [1,0,2,1,2,0,1,0,2][p.markerIndex%9]}
+function start(){held.clear();players=[newPlayer(0),newPlayer(1)];bank=Array.from({length:100},()=>question($('topic').value));answerTime=Number($('answerTime').value);remaining=DURATION;countdown=3;state='countdown';$('pause').disabled=false;resolvePads();capturing={player:-1,slot:-1};updateCalibUI();for(const id of ['menu','paused','result'])$(id).classList.add('hidden');$('countdown').classList.remove('hidden');players.forEach((p,i)=>{$('name'+i).textContent=p.name;$('q'+i).classList.add('hidden');$('feedback'+i).textContent=''});updateHUD()}
+function move(i,delta){if(state!=='race')return;const p=players[i];p.lane=Math.max(0,Math.min(2,p.lane+delta))}
+function feedback(i,text){$('feedback'+i).textContent=text;players[i].feedbackTime=3.5}
+function activate(i){const p=players[i];p.question=bank[p.attempts];p.attempts++;p.qTime=answerTime;p.questionReadyAt=performance.now()+220;p.marker=null;const q=p.question;$('prompt'+i).textContent=q.prompt;for(let j=0;j<3;j++){
+  const btn=$('answer'+i+j);
+  btn.querySelector('.val').textContent=fmt(q.options[j]);
+  const badge=btn.querySelector('.ps2'),label=answerButtonLabel(i,j);
+  badge.textContent=label;
+  if(label.length>1)badge.style.fontSize='15px';else badge.style.removeProperty('font-size');
+}$('q'+i).classList.remove('hidden');feedback(i,'Marcador azul ativado! Responda sem parar.');}
+function answer(i,choice){if(state!=='race')return;const p=players[i],q=p.question;if(!q)return;if(choice!==null&&performance.now()<p.questionReadyAt)return;if(choice!==null&&(!Number.isInteger(choice)||choice<0||choice>2))return;const selected=choice===null?null:q.options[choice],correct=selected===q.answer;p.records.push({...q,selected,correct});if(correct){p.hits++;const gain=Math.min(10,MAX_SPEED-p.maxSpeed);p.maxSpeed+=gain;feedback(i,gain?`✓ Acertou! Limite de velocidade +${gain} km/h`:'✓ Acertou! Velocidade máxima atingida.');rumble(i,.25,140)}else{feedback(i,`${choice===null?'Tempo esgotado.':'Resposta incorreta.'} ${q.explanation}`);rumble(i,.7,320)}p.question=null;$('q'+i).classList.add('hidden');p.marker=p.distance+180;p.markerIndex++;}
+function pause(){held.clear();if(['race','countdown'].includes(state)){beforePause=state;state='paused';$('paused').classList.remove('hidden')}else if(state==='paused'){state=beforePause;$('paused').classList.add('hidden')}}
+function menu(){held.clear();state='menu';$('paused').classList.add('hidden');$('result').classList.add('hidden');$('countdown').classList.add('hidden');$('menu').classList.remove('hidden');players.forEach((p,i)=>{$('q'+i).classList.add('hidden');$('feedback'+i).textContent=''});$('pause').disabled=true;updatePadInfo();}
+function finish(){state='result';$('pause').disabled=true;players.forEach((p,i)=>{if(p.question){p.records.push({...p.question,selected:null,correct:false,unfinished:true});p.question=null}$('q'+i).classList.add('hidden');$('feedback'+i).textContent=''});const difference=players[0].distance-players[1].distance,tie=Math.abs(difference)<1;$('winner').textContent=tie?'Empate!':`${players[difference>0?0:1].name} venceu!`;$('outcome').textContent=tie?'Os pilotos terminaram com menos de 1 metro de diferença.':'Vence quem percorre a maior distância durante os 3 minutos.';$('ranking').replaceChildren(...players.map(p=>{const tr=document.createElement('tr');for(const value of [p.name,`${p.distance.toFixed(1).replace('.',',')} m`,`${p.hits} / ${p.attempts}`,`${Math.round(p.speed)} km/h`]){const td=document.createElement('td');td.textContent=value;tr.appendChild(td)}return tr}));$('review').replaceChildren(...players.map(p=>{const d=document.createElement('details'),s=document.createElement('summary');s.textContent=`Questões de ${p.name} (${p.records.length})`;d.appendChild(s);p.records.forEach((q,j)=>{const t=document.createElement('p');t.textContent=`${q.correct?'✓':'✕'} ${j+1}. ${q.prompt} ${q.unfinished?'Corrida encerrada antes da resposta.':q.selected===null?'Sem resposta no tempo.':`Resposta: ${q.selected}.`} ${q.explanation}`;d.appendChild(t)});return d}));$('result').classList.remove('hidden');}
+
+/* ============================================================
+   🎮 SUPORTE A CONTROLE PLAYSTATION 2 (DualShock 2 via USB)
+   Mapeamento padrão do adaptador USB (Gamepad API):
+     ✕ Cross   = botão 0        ○ Circle = botão 1
+     □ Square  = botão 2        △ Triangle = botão 3
+     L1 = 4     R1 = 5          L2 = 6     R2 = 7
+     Select = 8                 Start = 9
+     L3 = 10    R3 = 11
+     Direcional ↑=12 ↓=13 ←=14 →=15
+   Aluno 1 → controle 1 | Aluno 2 → controle 2
+   Analógico esquerdo: direção proporcional
+   R2 (ou R1 ou ↑): acelerar   |   L2 (ou L1 ou ↓): frear
+   ✕ / ○ / □ (ou △): responder 1 / 2 / 3
+   Start / Select: pausar
+   ============================================================ */
+const padMap=[null,null];      // índice do gamepad usado por cada aluno
+const padPrev=[[],[]];         // estado anterior dos botões (detecção de borda)
+let pads=[],padSignature='';
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function pollPads(){try{pads=navigator.getGamepads?Array.from(navigator.getGamepads()).filter(p=>p&&p.connected):[]}catch(e){pads=[]}}
+function padById(ix){return pads.find(p=>p.index===ix)||null}
+function padFor(i){return padMap[i]===null?null:padById(padMap[i])}
+
+function resolvePads(){
+  pollPads();
+  const avail=pads.map(p=>p.index),used=new Set();
+  for(let i=0;i<2;i++){
+    const sel=$('pad'+i),pref=sel?sel.value:'auto';
+    padMap[i]=null;padPrev[i]=[];
+    if(pref==='off')continue;
+    if(pref==='auto'){const free=avail.find(ix=>!used.has(ix));if(free!==undefined){padMap[i]=free;used.add(free)}}
+    else{const ix=Number(pref);if(avail.includes(ix)&&!used.has(ix)){padMap[i]=ix;used.add(ix)}}
+  }
+  updatePadInfo();
+}
+function updatePadInfo(){
+  const el=$('padinfo');if(!el)return;
+  if(!pads.length){el.textContent='🎮 Nenhum controle PS2 detectado. Conecte o adaptador USB e aperte qualquer botão para ativá-lo (o navegador só libera o controle após um toque).';return}
+  const nomes=pads.map(p=>`#${p.index+1} ${String(p.id).split('(')[0].trim()}`);
+  el.textContent=`🎮 Controles detectados: ${nomes.join(' • ')} — Aluno 1: ${padMap[0]!==null?'controle #'+(padMap[0]+1):'teclado'} • Aluno 2: ${padMap[1]!==null?'controle #'+(padMap[1]+1):'teclado'}`;
+}
+function btnPressed(bt,ix){return !!(bt&&bt[ix]&&bt[ix].pressed)}
+function btnValue(bt,ix){return bt&&bt[ix]?(bt[ix].value!==undefined?bt[ix].value:(bt[ix].pressed?1:0)):0}
+function padReading(i){
+  const g=padFor(i);if(!g)return null;
+  const ax=g.axes||[],bt=g.buttons||[];
+  const dead=v=>Math.abs(v)<0.16?0:v;
+  const stick=dead(ax[0]||0);
+  // Direcional ←/→ (14/15) reforça a direção, útil p/ PS2 sem analógico ativo
+  const dL=btnPressed(bt,14)?1:0,dR=btnPressed(bt,15)?1:0;
+  const steer=clamp(stick+dR-dL,-1,1);
+  // Acelerar: R2 (7) | R1 (5) | direcional ↑ (12)
+  const gas=Math.max(btnValue(bt,7),btnPressed(bt,5)?1:0,btnPressed(bt,12)?1:0);
+  // Frear: L2 (6) | L1 (4) | direcional ↓ (13)
+  const brake=Math.max(btnValue(bt,6),btnPressed(bt,4)?1:0,btnPressed(bt,13)?1:0);
+  return{steer,gas,brake};
+}
+/* ============================================================
+   🎮 BOTÕES DE RESPOSTA DO CONTROLE PS2 (mapeamento calibrável)
+   Cada adaptador PS2→USB numera os botões de um jeito diferente:
+   em muitos deles ✕ NÃO é o botão 0. Por isso o mapeamento pode
+   ser refeito no menu, sem mexer no código.
+   ============================================================ */
+const DEFAULT_ANSWER_MAP={0:0,1:1,2:2};       // fallback; use a calibração para o seu adaptador
+let padAnswerMap=[{...DEFAULT_ANSWER_MAP},{...DEFAULT_ANSWER_MAP}];
+let capturing={player:-1,slot:-1};
+const answerDebounceUntil=[0,0];
+const BTN_NAMES={0:'✕',1:'○',2:'□',3:'△',4:'L1',5:'R1',6:'L2',7:'R2',8:'Select',9:'Start',10:'L3',11:'R3',12:'↑',13:'↓',14:'←',15:'→'};
+
+try{const saved=JSON.parse(localStorage.getItem('rally_pad_answers')||'null');if(Array.isArray(saved)&&saved.length===2&&saved.every(o=>o&&typeof o==='object'))padAnswerMap=saved.map(o=>({...o}))}catch(e){}
+function saveAnswerMap(){try{localStorage.setItem('rally_pad_answers',JSON.stringify(padAnswerMap))}catch(e){}}
+function answerSlotButton(i,slot){const map=padAnswerMap[i],key=Object.keys(map).find(k=>Number(map[k])===slot);return key===undefined?null:Number(key)}
+function answerButtonLabel(i,slot){return ['✕','○','□'][slot]||'?'}
+function updateCalibUI(){
+  for(let i=0;i<2;i++){
+    const box=$('calib'+i);if(!box)continue;
+    box.querySelectorAll('.calibBtn').forEach(btn=>{
+      const slot=Number(btn.dataset.slot),b=answerSlotButton(i,slot);
+      btn.textContent=`${['✕','○','□'][slot]} = ${['1ª','2ª','3ª'][slot]} opção • ${b===null?'não calibrado':'botão físico '+b}`;
+      btn.classList.toggle('capturing',capturing.player===i&&capturing.slot===slot);
+    });
+  }
+}
+function startCapture(i,slot){
+  pollPads();
+  if(!padFor(i)){capturing={player:-1,slot:-1};updateCalibUI();$('calibinfo').textContent=`🎮 Nenhum controle atribuído ao Aluno ${i+1}. Conecte o adaptador, aperte um botão e escolha o controle no campo acima.`;return}
+  capturing={player:i,slot};
+  const g=padFor(i);
+  padPrev[i]=g?(g.buttons||[]).map(b=>!!(b.pressed||b.value>0.55)):[];
+  $('calibinfo').textContent=`Aguardando… solte os botões e aperte UMA VEZ o botão físico que deve representar ${['✕','○','□'][slot]} (${['1ª','2ª','3ª'][slot]} opção).`;
+  updateCalibUI();
+}
+function assignCapture(i,b){
+  const map=padAnswerMap[i],slot=capturing.slot;
+  // Um botão físico só pode representar uma resposta, e cada resposta só pode ter um botão.
+  for(const k of Object.keys(map)){
+    if(Number(map[k])===slot || Number(k)===b)delete map[k];
+  }
+  map[b]=slot;
+  capturing={player:-1,slot:-1};
+  answerDebounceUntil[i]=performance.now()+300;
+  saveAnswerMap();updateCalibUI();
+  $('calibinfo').textContent=`✅ Calibrado: botão físico ${b} = ${['✕','○','□'][slot]} = ${['1ª','2ª','3ª'][slot]} opção do Aluno ${i+1}.`;
+}
+function pollPadEdges(){
+  for(let i=0;i<2;i++){
+    const g=padFor(i);
+    if(!g){padPrev[i]=[];continue}
+    const cur=(g.buttons||[]).map(b=>!!(b.pressed||b.value>0.55)),prev=padPrev[i];
+    // Se o controle acabou de ser ligado/atribuído, ignora botões já pressionados
+    if(!Array.isArray(prev)||prev.length!==cur.length){padPrev[i]=cur.slice();continue}
+    for(let b=0;b<cur.length;b++)if(cur[b]&&!prev[b])padPress(i,b);
+    padPrev[i]=cur.slice();
+  }
+}
+function padPress(i,b){
+  if(capturing.player===i){assignCapture(i,b);return}
+  if(state==='menu'||state==='result')return;
+
+  const now=performance.now();
+  const map=padAnswerMap[i];
+
+  // Se existe uma questão aberta, o botão calibrado de resposta tem prioridade.
+  // Isso evita conflito em adaptadores PS2 que numeram botões de forma não padrão.
+  if(state==='race' && players[i] && players[i].question &&
+     Object.prototype.hasOwnProperty.call(map,b)){
+    if(now<answerDebounceUntil[i])return;
+    answerDebounceUntil[i]=now+280;
+    answer(i,Number(map[b]));
+    return;
+  }
+
+  // Pausa somente quando o botão não foi usado como resposta ativa.
+  if(b===9||b===8){pause();return}
+}
+function rumble(i,strength,duration){
+  const g=padFor(i);if(!g)return;
+  const act=g.vibrationActuator||(g.hapticActuators&&g.hapticActuators[0]);
+  if(!act)return;
+  try{
+    if(act.playEffect){const r=act.playEffect('dual-rumble',{startDelay:0,duration,strongMagnitude:strength,weakMagnitude:strength*.6});if(r&&r.catch)r.catch(()=>{})}
+    else if(act.pulse)act.pulse(strength,duration);
+  }catch(e){}
+}
+addEventListener('gamepadconnected',()=>{padSignature='';resolvePads()});
+addEventListener('gamepaddisconnected',()=>{padSignature='';resolvePads()});
+/* ============================================================ */
+
+function updateHUD(){const seconds=Math.ceil(remaining);$('clock').textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;players.forEach((p,i)=>{$('name'+i).textContent=p.name+(padFor(i)?' 🎮':'');$('speed'+i).textContent=Math.round(p.speed);$('distance'+i).textContent=Math.floor(p.distance);$('hits'+i).textContent=p.hits;const other=players[1-i],lead=p.distance-other.distance;const pos=(Math.abs(p.x)>6?'NA GRAMA • ': '')+(Math.abs(lead)<1?'Lado a lado':lead>0?`${Math.floor(lead)} m à frente`:`${Math.floor(-lead)} m atrás`);$('status'+i).textContent=p.question?`${pos} • responda em ${Math.ceil(p.qTime)} s`:`${pos} • marcador a ${Math.max(0,Math.ceil(p.marker-p.distance))} m`;$('bar'+i).style.width=`${Math.max(0,p.qTime/answerTime)*100}%`})}
+function tick(dt){if(state==='countdown'){countdown-=dt;$('countdown').textContent=Math.max(1,Math.ceil(countdown));if(countdown<=0){state='race';$('countdown').classList.add('hidden')}return}if(state!=='race')return;const step=Math.min(dt,remaining);remaining=Math.max(0,remaining-step);if(remaining<1e-8)remaining=0;players.forEach((p,i)=>{const controls=i?{gas:'arrowup',brake:'arrowdown',left:'arrowleft',right:'arrowright'}:{gas:'w',brake:'s',left:'a',right:'d'};
+ const pad=padReading(i);
+ const gas=Math.max(held.has(controls.gas)?1:0,pad?pad.gas:0);
+ const brake=Math.max(held.has(controls.brake)?1:0,pad?pad.brake:0);
+ const steer=clamp((Number(held.has(controls.right))-Number(held.has(controls.left)))+(pad?pad.steer:0),-1,1);
+ const offroad=Math.abs(p.x)>6;
+ const accel=(gas>0.02?22*gas:-5)-(48*brake)-(offroad?19:0);
+ p.speed=Math.max(0,Math.min(p.maxSpeed,p.speed+accel*step));
+ p.steer+=(steer-p.steer)*Math.min(1,step*8);
+ p.x=Math.max(-24,Math.min(24,p.x+p.steer*(1.7+p.speed*.045)*Math.min(1,p.speed/12)*step));
+ p.lane=Math.max(0,Math.min(2,Math.round(p.x/4+1)));
+ p.distance+=p.speed/3.6*step;
+ p.collisionTime=Math.max(0,p.collisionTime-step);if(p.feedbackTime>0){p.feedbackTime-=step;if(p.feedbackTime<=0)$('feedback'+i).textContent=''}if(p.question){p.qTime=Math.max(0,p.qTime-step);if(p.qTime<=0)answer(i,null)}else if(p.marker!==null&&p.distance>=p.marker){if(Math.abs(p.x-(markerLane(p)-1)*4)<1.5){activate(i)}else{p.missed++;p.marker=p.distance+180;p.markerIndex++;feedback(i,'Marcador perdido. Procure o próximo!')}}});
+ const a=players[0],b=players[1],dx=b.x-a.x,dz=b.distance-a.distance;
+ if(Math.abs(dx)<2.05&&Math.abs(dz)<3.9){
+  const sidePen=2.05-Math.abs(dx),longPen=3.9-Math.abs(dz);
+  if(sidePen<longPen){const sign=dx>=0?1:-1;a.x-=sign*(sidePen/2+.025);b.x+=sign*(sidePen/2+.025);a.steer*=.35;b.steer*=.35;}
+  else{const sign=dz>=0?1:-1;a.distance-=sign*(longPen/2+.025);b.distance+=sign*(longPen/2+.025);a.distance=Math.max(0,a.distance);b.distance=Math.max(0,b.distance);}
+  if(a.collisionTime<=0&&b.collisionTime<=0){const avg=(a.speed+b.speed)/2;a.speed=Math.min(a.maxSpeed,avg*.7);b.speed=Math.min(b.maxSpeed,avg*.7);a.collisionTime=b.collisionTime=.7;feedback(0,'Batida! Você perdeu velocidade.');feedback(1,'Batida! Você perdeu velocidade.');rumble(0,.8,300);rumble(1,.8,300);}
+ }
+ updateHUD();if(remaining<=0)finish()}
+$('quality').onchange=resize;
+$('pad0').onchange=()=>{resolvePads();updateCalibUI()};
+$('pad1').onchange=()=>{resolvePads();updateCalibUI()};
+$('start').onclick=start;$('pause').onclick=pause;$('resume').onclick=pause;$('back').onclick=menu;$('again').onclick=menu;for(let i=0;i<2;i++)for(let j=0;j<3;j++)$('answer'+i+j).onclick=()=>answer(i,j);
+for(let i=0;i<2;i++){const box=$('calib'+i);if(box)box.querySelectorAll('.calibBtn').forEach(btn=>{btn.onclick=()=>{btn.blur();startCapture(i,Number(btn.dataset.slot))}})}
+$('resetcalib').onclick=()=>{padAnswerMap=[{...DEFAULT_ANSWER_MAP},{...DEFAULT_ANSWER_MAP}];capturing={player:-1,slot:-1};answerDebounceUntil[0]=answerDebounceUntil[1]=0;saveAnswerMap();updateCalibUI();$('calibinfo').textContent='Mapeamento padrão restaurado. Se seu adaptador PS2 trocar os botões, calibre ✕, ○ e □ antes de começar.'};
+updateCalibUI();
+$('export').onclick=()=>{let text=`RALLY MATEMÁTICO — DUELO 3D
+${new Date().toLocaleString('pt-BR')}
+Duração: 3 minutos
+${$('winner').textContent}
+`;players.forEach(p=>{text+=`
+${p.name}
+Distância: ${p.distance.toFixed(1)} m
+Velocidade: ${p.speed} km/h
+Acertos: ${p.hits}/${p.attempts}
+Marcadores perdidos: ${p.missed}
+`+p.records.map((q,j)=>`
+${j+1}. ${q.prompt}
+${q.unfinished?'Corrida encerrada sem resposta':q.selected===null?'Tempo esgotado':'Resposta: '+q.selected}. ${q.explanation}
+`).join('')});const u=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'})),a=document.createElement('a');a.href=u;a.download='resultado_duelo_matematico.txt';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+const held=new Set();
+addEventListener('keyup',e=>held.delete(e.key.toLowerCase()));
+addEventListener('keydown',e=>{if(['menu','result'].includes(state))return;const k=e.key.toLowerCase();
+ if(['w','s','a','d','arrowup','arrowdown','arrowleft','arrowright','1','2','3','j','k','l',' ','p','escape'].includes(k)){
+ e.preventDefault();if(state==='race')held.add(k);if(e.repeat)return;
+ if([' ','p','escape'].includes(k))pause();
+ else if(['1','2','3'].includes(k))answer(0,Number(k)-1);
+ else if(['j','k','l'].includes(k))answer(1,['j','k','l'].indexOf(k));
+ }});
+addEventListener('blur',()=>{if(['race','countdown'].includes(state))pause()});document.addEventListener('visibilitychange',()=>{if(document.hidden&&['race','countdown'].includes(state))pause()});
+// Perspective renderer: real XYZ vertices, flat-shaded faces, software depth sorting.
+let W,H,faces=[],cameraX=0,worldDistance=0;
+function project(x,y,z){const depth=z+15;if(depth<=.3)return null;const f=Math.min(W*1.25,H*.95);return[W/2+(x-cameraX*.22)*f/depth,H*.40+(5-y)*f/depth]}
+function poly(vertices,color){const clipped=[];for(let i=0;i<vertices.length;i++){const a=vertices[i],b=vertices[(i+1)%vertices.length],insideA=a[2]>=-14.5,insideB=b[2]>=-14.5;if(insideA)clipped.push(a);if(insideA!==insideB){const t=(-14.5-a[2])/(b[2]-a[2]);clipped.push([a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1]),-14.5])}}if(clipped.length<3)return;vertices=clipped;const points=vertices.map(v=>project(...v));faces.push({vertices,points,color,z:vertices.reduce((a,v)=>a+v[2],0)/vertices.length})}
+function box(x,y,z,w,h,d,color,top,side){const a=[x-w/2,y,z-d/2],b=[x+w/2,y,z-d/2],c=[x+w/2,y,z+d/2],e=[x-w/2,y,z+d/2],up=p=>[p[0],p[1]+h,p[2]];poly([a,b,up(b),up(a)],color);poly([a,e,up(e),up(a)],side||color);poly([b,c,up(c),up(b)],side||color);poly([up(a),up(b),up(c),up(e)],top||color)}
+
+function roadCenter(z){return Math.sin((worldDistance+z)/200)*4-Math.sin(worldDistance/200)*4}
+function marker(x,z){const sides=14,r=1.4;for(let j=0;j<sides;j++){const a=j/sides*Math.PI*2,b=(j+1)/sides*Math.PI*2;const v=[x+Math.cos(a)*r,.04,z+Math.sin(a)*r],w=[x+Math.cos(b)*r,.04,z+Math.sin(b)*r];poly([v,w,[w[0],3.7,w[2]],[v[0],3.7,v[2]]],'#24abff38');poly([[x,.07,z],v,w],'#48cfff');}box(x,3.8,z,.18,.8,.18,'#a1eaff','#fff');}
+
+function meshRing(x,y,z,r,depth){
+ const steps=quality==='low'?8:12;
+ for(let j=0;j<steps;j++){
+  const spin=worldDistance/r; const a=j/steps*Math.PI*2+spin,b=(j+1)/steps*Math.PI*2+spin;
+  const v=[x,y+Math.cos(a)*r,z+Math.sin(a)*r],w=[x,y+Math.cos(b)*r,z+Math.sin(b)*r];
+  poly([v,w,[x+depth,w[1],w[2]],[x+depth,v[1],v[2]]],j<5?'#29313a':'#101721');
+  for(const side of [x,x+depth]){poly([[side,y,z],[side,w[1],w[2]],[side,v[1],v[2]]],'#151e29');
+   const t=p=>[side,y+(p[1]-y)*.58,z+(p[2]-z)*.58];
+   poly([[side,y,z],t(w),t(v)],j%2?'#a9bcc7':'#455664');
+  }
+ }
+}
+let quality='medium';
+function tree(x,z,n){
+ box(x,0,z,.38,2,.38,'#665443','#89725c','#493f37');
+ for(let k=0;k<3;k++){
+  const y=1+k*.9,r=2-k*.4;
+  for(let j=0;j<5;j++){const a=j/5*Math.PI*2,b=(j+1)/5*Math.PI*2;
+   poly([[x+Math.cos(a)*r,y,z+Math.sin(a)*r],[x+Math.cos(b)*r,y,z+Math.sin(b)*r],[x,y+2.8,z]],['#254c42','#356755','#48816a','#3f735e','#295947'][(j+n%3+3)%5]);}
+ }
+}
+function car(p,i){
+ const x=p.x,turn=-p.steer*.14;
+ // Contact shadow lies directly on the road, followed by sculpted body panels.
+ for(let ring=3;ring>=0;ring--){const shadow=[];for(let j=0;j<20;j++){const a=j/20*Math.PI*2;shadow.push([x+.25+Math.cos(a)*(1.3+ring*.17),.075,Math.sin(a)*(2.2+ring*.12)])}poly(shadow,'#07132224')}
+
+ for(const side of [-1,1])for(const z of [-1.03,1.15])meshRing(x+side*1.04-(side<0?.25:0),.48,z,.46,.25);
+ const paint=i?'#f58332':'#239edf',light=i?'#ffc279':'#81dcff',dark=i?'#9f3d23':'#14537e';
+ box(x,.37,0,2,.35,3.9,dark,paint,dark);
+ const lower=[[-1,.68,-1.95],[1,.68,-1.95],[1,.68,1.95],[-1,.68,1.95]],upper=[[-.86,1,-1.6],[.86,1,-1.6],[.84,.87,1.75],[-.84,.87,1.75]];
+ const pos=v=>[v[0]+x+turn*v[2],v[1],v[2]];
+ for(let j=0;j<4;j++)poly([lower[j],lower[(j+1)%4],upper[(j+1)%4],upper[j]].map(pos),j===0?paint:dark);
+ poly(upper.map(pos),light);
+ const cabin=[[-.78,1,-.8],[.78,1,-.8],[.7,1,1.02],[-.7,1,1.02]],roof=[[-.59,1.55,-.38],[.59,1.55,-.38],[.57,1.5,.56],[-.57,1.5,.56]];
+ for(let j=0;j<4;j++)poly([cabin[j],cabin[(j+1)%4],roof[(j+1)%4],roof[j]].map(pos),j===0?'#25495f':j===2?'#8fbecb':'#193b51');
+ poly(roof.map(pos),paint);
+ for(const dx of [-.16,.16])poly([[dx-.055,1.558,-.35],[dx+.055,1.558,-.35],[dx+.055,1.51,.54],[dx-.055,1.51,.54]].map(pos),'#f4efdb');
+ // Narrow specular highlights along the sculpted shoulder panels.
+ for(const sign of [-1,1])poly([[sign*.86,1.008,-1.55],[sign*.82,1.008,-1.55],[sign*.8,.89,1.7],[sign*.84,.89,1.7]].map(pos),'#ffffff85');
+
+ poly([[-.5,1.42,-.48],[.1,1.42,-.48],[.64,1.06,-.76],[-.73,1.06,-.76]].map(pos),'#bceaff40');
+ for(const side of [-1,1]){
+  box(x+side*.72,.71,-1.97,.42,.15,.05,'#ff3b4b','#ffb4a9');
+  box(x+side*.97,1.05,.05,.26,.12,.3,dark,light);
+  box(x+side*.64,.83,-1.48,.1,.4,.13,dark);
+ }
+ box(x,1.2,-1.5,2.08,.09,.34,dark,paint);
+ box(x,.38,-1.99,1.25,.14,.08,'#172631');
+ box(x,.56,-2.04,.45,.16,.03,'#dee4da');
+ for(const side of [-1,1])box(x+side*.65,.35,-2.02,.18,.12,.09,'#a7b0b5');
+ // Twin racing stripes across the hood.
+ for(const dx of [-.16,.16])poly([[x+dx-.07,.92,1.04],[x+dx+.07,.92,1.04],[x+dx+.07,.9,1.71],[x+dx-.07,.9,1.71]],'#edf9ed');
+}
+// Deterministic procedural materials: no downloads or external assets.
+const asphalt=document.createElement('canvas');asphalt.width=128;asphalt.height=128;
+const ac=asphalt.getContext('2d');let seed=731;
+function noise(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+for(let y=0;y<128;y++)for(let x=0;x<128;x++){const v=44+Math.floor(noise()*24);ac.fillStyle=`rgb(${v},${v+5},${v+9})`;ac.fillRect(x,y,1,1)}
+const asphaltPattern=ctx.createPattern(asphalt,'repeat');
+function grandstand(x,z,sign){
+ box(x,0,z,7,1,18,'#546978','#85989e','#3c5260');
+ for(let row=0;row<4;row++){
+  const xx=x+sign*(row*.7-1.1),yy=1+row*.65;
+  box(xx,yy,z,1,.3,17,'#82979c','#d2d7c9','#5b727c');
+  if(quality!=='low')for(let n=0;n<10;n++)box(xx,yy+.3,z-7.5+n*1.6,.33,.55,.38,['#ffd06a','#68c6e2','#e9e6cc','#dc6964'][n%4]);
+ }
+ for(const dz of [-8,8])box(x+sign*2.6,0,z+dz,.2,5,.2,'#384f5d');
+ box(x,5,z,8,.18,20,'#143c58','#48829b','#224e68');
+}
+function billboard(x,z){
+ box(x,0,z,.2,3.6,.2,'#7e9096');
+ box(x,2.2,z,4,1.8,.2,'#113e54','#64d8df');
+ for(let k=0;k<3;k++)box(x-1.1+k*1.1,2.65,z-.12,.65,.85,.04,['#69d9e6','#c8f078','#ffbe67'][k]);
+}
+function drawView(p,i){
+ quality=$('quality').value;W=width/2;H=height-64;cameraX=p.x;worldDistance=p.distance;
+ ctx.save();ctx.translate(i*W,64);ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();
+ const sky=ctx.createLinearGradient(0,0,0,H*.65);sky.addColorStop(0,'#276ba0');sky.addColorStop(.64,'#a7d8e5');sky.addColorStop(1,'#e7e7cf');ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+ const sun=ctx.createRadialGradient(W*.78,H*.19,3,W*.78,H*.19,100);sun.addColorStop(0,'#fff8d7');sun.addColorStop(.2,'#ffefb8bb');sun.addColorStop(1,'#fff3ba00');ctx.fillStyle=sun;ctx.fillRect(0,0,W,H*.5);
+ ctx.fillStyle='#fff8df';ctx.beginPath();ctx.arc(W*.78,H*.19,16,0,Math.PI*2);ctx.fill();
+ for(let j=0;j<5;j++){const x=(j*.27*W+W*.06-p.distance*.035)%(W+160),y=H*(.12+(j%3)*.045);ctx.fillStyle='#ffffff55';ctx.beginPath();ctx.ellipse(x,y,54,8,0,0,Math.PI*2);ctx.ellipse(x+22,y-5,29,12,0,0,Math.PI*2);ctx.fill()}
+ for(let layer=0;layer<3;layer++){ctx.fillStyle=['#83b0bc','#719b9e','#54837b'][layer];ctx.beginPath();ctx.moveTo(0,H*.45);for(let n=0;n<=40;n++){const x=n*W/40;ctx.lineTo(x,H*(.32+layer*.036-Math.abs(Math.sin(n*.23+layer*2))*.095+Math.sin(n*.69+layer)*.016))}ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill()}
+ faces=[];const offset=p.distance%8,far=quality==='low'?192:320;
+ for(let z=far;z>-24;z-=8){const z0=z-offset,z1=z0+8,c0=roadCenter(z0),c1=roadCenter(z1),n=Math.floor((p.distance+z0)/8);
+ poly([[c0-150,0,z0],[c0+150,0,z0],[c1+150,0,z1],[c1-150,0,z1]],n%2?'#658563':'#628160');
+ poly([[c0-8,.012,z0],[c0+8,.012,z0],[c1+8,.012,z1],[c1-8,.012,z1]],'#92947d');
+ poly([[c0-6.65,.025,z0],[c0+6.65,.025,z0],[c1+6.65,.025,z1],[c1-6.65,.025,z1]],n%2?'#f0e9d8':'#bf5045');
+ poly([[c0-6.05,.04,z0],[c0+6.05,.04,z0],[c1+6.05,.04,z1],[c1-6.05,.04,z1]],asphaltPattern);
+ for(const x of [-5.85,5.85])poly([[c0+x-.06,.055,z0],[c0+x+.06,.055,z0],[c1+x+.06,.055,z1],[c1+x-.06,.055,z1]],'#f3ebd6');
+ if(n%2===0)for(const x of [-2,2])poly([[c0+x-.065,.058,z0],[c0+x+.065,.058,z0],[c1+x+.065,.058,z1],[c1+x-.065,.058,z1]],'#dce1d7');
+ for(const sign of [-1,1]){
+  if(n%2===0){box(c0+sign*8.2,0,z0,.15,1.1,.15,'#667b83','#bac6c6');}
+  poly([[c0+sign*8.2,.65,z0],[c1+sign*8.2,.65,z1],[c1+sign*8.2,.95,z1],[c0+sign*8.2,.95,z0]],'#b8c8c5');
+  if(n%(quality==='low'?6:3)===0)tree(c0+sign*(13+Math.abs(n%5)),z0,n);
+  if(quality==='high'&&n%4===0)tree(c0+sign*24,z0+3,n+1);
+  if(n%36===0&&z0>18)grandstand(c0+sign*18,z0,sign);
+  if(n%18===9&&z0>4)billboard(c0+sign*11,z0);
+  if(n%12===0){box(c0+sign*7.5,0,z0,.12,1.6,.12,'#cad5d1');box(c0+sign*7.5,1.2,z0,.45,.3,.15,'#ffd363','#fce6a3');}
+ }
+ }
+ if(p.marker!==null){const z=p.marker-p.distance;if(z>0&&z<far)marker(roadCenter(z)+(markerLane(p)-1)*4,z)}
+ // Both views display the same two racers on the same track.
+ const opponent=players[1-i],relativeZ=opponent.distance-p.distance;
+ if(relativeZ>-12&&relativeZ<far){
+  const sceneryBefore=faces;faces=[];
+  car({...opponent,x:opponent.x+roadCenter(relativeZ)},1-i);
+  // Reproject opponent faces translated along the shared longitudinal axis.
+  const opponentFaces=faces;faces=sceneryBefore;
+  for(const f of opponentFaces){
+   const shifted=f.vertices.map(v=>[v[0],v[1],v[2]+relativeZ]);poly(shifted,f.color);
+  }
+ }
+ const scenery=faces;faces=[];car(p,i);const vehicle=faces;scenery.sort((a,b)=>b.z-a.z);vehicle.sort((a,b)=>b.z-a.z);faces=scenery.concat(vehicle);for(const face of faces){ctx.fillStyle=face.color;ctx.beginPath();face.points.forEach((v,j)=>j?ctx.lineTo(...v):ctx.moveTo(...v));ctx.closePath();ctx.fill();
+ // Aerial perspective softens only distant world geometry.
+ if(face.z>65){ctx.fillStyle=`rgba(185,213,216,${Math.min(.68,(face.z-65)/420)})`;ctx.fill()}
+ }
+ if(p.marker!==null){const z=p.marker-p.distance;if(z>0&&z<far){const point=project(roadCenter(z)+(markerLane(p)-1)*4,5.4,z);ctx.textAlign='center';ctx.font='bold 12px system-ui';ctx.fillStyle='#08273be8';ctx.fillRect(point[0]-47,point[1]-20,94,26);ctx.fillStyle='#b5f2ff';ctx.fillText('◆ QUESTÃO',point[0],point[1]-3)}}
+ // Soft lens shading frames the track without obscuring the math panel.
+ if(quality!=='low'){const vignette=ctx.createRadialGradient(W/2,H*.48,H*.2,W/2,H*.48,H*.8);vignette.addColorStop(0,'#03142000');vignette.addColorStop(1,'#03142055');ctx.fillStyle=vignette;ctx.fillRect(0,0,W,H)}
+ // Compact analog speed dial, well below question controls.
+ const gx=W-62,gy=H-133;
+ ctx.fillStyle='#071d2bc9';ctx.beginPath();ctx.arc(gx,gy,43,0,Math.PI*2);ctx.fill();
+ ctx.lineWidth=4;ctx.strokeStyle='#ffffff25';ctx.beginPath();ctx.arc(gx,gy,34,.75*Math.PI,2.25*Math.PI);ctx.stroke();
+ ctx.strokeStyle=i?'#ffb969':'#77ddff';ctx.beginPath();ctx.arc(gx,gy,34,.75*Math.PI,(.75+1.5*p.speed/160)*Math.PI);ctx.stroke();
+ ctx.fillStyle='#ffffff';ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillText(Math.round(p.speed),gx,gy+4);ctx.font='9px system-ui';ctx.fillStyle='#bcd5df';ctx.fillText('km/h',gx,gy+19);
+ ctx.restore();
+}
+let lastPaint=-100;
+function frame(t){const dt=last===null?0:Math.max(0,(t-last)/1000);last=t;
+ // 🎮 leitura dos controles a cada quadro (até fora da corrida, para o Start funcionar)
+ pollPads();const sig=pads.map(p=>p.index).join(',');if(sig!==padSignature){padSignature=sig;resolvePads()}
+ pollPadEdges();
+ if(['race','countdown'].includes(state)){if(dt>1){pause()}else{let left=dt;while(left>0){const step=Math.min(left,1/60);tick(step);left-=step}}}if(players.length===0)players=[newPlayer(0),newPlayer(1)];if(t-lastPaint>=($('quality').value==='high'?0:1000/30-1)){drawView(players[0],0);drawView(players[1],1);lastPaint=t}requestAnimationFrame(frame)}$('pause').disabled=true;resolvePads();updateCalibUI();requestAnimationFrame(frame);
+</script></html> 
