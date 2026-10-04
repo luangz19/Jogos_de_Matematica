@@ -196,4 +196,3 @@ Depois de uma alteração, confira as respostas e teste o funcionamento. Registr
 
 [Perfil no GitHub](https://github.com/luangz19) · [Repositório dos jogos](https://github.com/luangz19/Jogos_de_Matematica)
 
-As imagens deste README são capturas de tela dos jogos. Os arquivos da pasta `imagens/` devem permanecer junto ao README para que sejam exibidos no GitHub.
